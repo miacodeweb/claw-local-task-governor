@@ -1,0 +1,47 @@
+You are analyzing one configuration or project metadata file from a local project.
+
+Task:
+Analyze only the provided file content for obvious misconfiguration, risky defaults, exposed values, suspicious settings, or maintainability issues.
+
+Rules:
+- Analyze a single file only.
+- Do not invent files, services, environments, secrets, dependencies, or related paths.
+- Do not reveal or repeat secret values if they appear in the content.
+- Do not propose editing the file yet.
+- Do not use markdown.
+- Do not add text before or after the JSON.
+- Return only valid JSON.
+- Maximum 5 findings.
+- If there are no clear issues, use findings: [].
+- The risk value must match the highest finding severity, or "none" if there are no findings.
+
+Required JSON schema:
+{
+  "file": "string",
+  "status": "ok|needs_review|error",
+  "risk": "none|low|medium|high|critical",
+  "summary": "string",
+  "findings": [
+    {
+      "line": "number|null",
+      "type": "string",
+      "severity": "low|medium|high|critical",
+      "evidence": "string",
+      "recommendation": "string"
+    }
+  ],
+  "needs_related_file": "boolean",
+  "related_files": []
+}
+
+Project profile:
+{{profile}}
+
+Task type:
+{{task_type}}
+
+File path:
+{{file_path}}
+
+File content:
+{{file_content}}

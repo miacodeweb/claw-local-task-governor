@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FileAnalysis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "file",
+    "status",
+    "risk",
+    "summary",
+    "findings",
+    "needs_related_file",
+    "related_files"
+  ],
+  "properties": {
+    "file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "needs_review", "error"]
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high", "critical"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "line",
+          "type",
+          "severity",
+          "evidence",
+          "recommendation"
+        ],
+        "properties": {
+          "line": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "needs_related_file": {
+      "type": "boolean"
+    },
+    "related_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

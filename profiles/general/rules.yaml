@@ -1,0 +1,30 @@
+{
+  "name": "general",
+  "relevant_extensions": [
+    ".md",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".html",
+    ".css"
+  ],
+  "important_files": [
+    "README.md",
+    "CHANGELOG.md",
+    "Dockerfile",
+    "docker-compose.yml"
+  ],
+  "ignore_dirs": [],
+  "risk_patterns": [
+    "password",
+    "secret",
+    "token",
+    "api_key"
+  ],
+  "recommended_prompt": "inspect_code_file.txt",
+  "markers": {
+    "confidence": 0.4
+  }
+}

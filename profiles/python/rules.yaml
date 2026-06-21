@@ -1,0 +1,12 @@
+{
+  "name": "python",
+  "relevant_extensions": [".py", ".pyi"],
+  "important_files": ["pyproject.toml", "requirements.txt", "setup.py", "poetry.lock"],
+  "ignore_dirs": ["__pycache__", ".venv", "venv"],
+  "risk_patterns": ["eval(", "exec(", "pickle.loads", "subprocess", "os.system"],
+  "recommended_prompt": "inspect_code_file.txt",
+  "markers": {
+    "files": ["pyproject.toml", "requirements.txt"],
+    "confidence": 0.75
+  }
+}

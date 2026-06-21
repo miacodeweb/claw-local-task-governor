@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaskResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "project_path",
+    "file_path",
+    "file_hash",
+    "task_type",
+    "profile",
+    "status",
+    "json_valid",
+    "json_repaired",
+    "risk",
+    "result",
+    "created_at"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "file_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "file_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "inspect_code_file",
+        "inspect_config_file",
+        "inspect_documentation_file",
+        "inspect_unknown_file"
+      ]
+    },
+    "profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed", "reused"]
+    },
+    "json_valid": {
+      "type": "boolean"
+    },
+    "json_repaired": {
+      "type": "boolean"
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high", "critical"]
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "status",
+        "risk",
+        "summary",
+        "findings",
+        "needs_related_file",
+        "related_files"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "needs_review", "error"]
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high", "critical"]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "line",
+              "type",
+              "severity",
+              "evidence",
+              "recommendation"
+            ],
+            "properties": {
+              "line": {
+                "type": ["integer", "null"],
+                "minimum": 1
+              },
+              "type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"]
+              },
+              "evidence": {
+                "type": "string"
+              },
+              "recommendation": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "needs_related_file": {
+          "type": "boolean"
+        },
+        "related_files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

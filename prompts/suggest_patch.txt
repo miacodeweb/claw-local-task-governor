@@ -1,0 +1,26 @@
+You are proposing a reviewable patch for one file in a local code project.
+
+Rules:
+- Use only the provided finding and file content.
+- Return a unified diff only.
+- Do not use markdown.
+- Do not add explanations before or after the diff.
+- Touch exactly one file: {{file_path}}
+- Do not invent files.
+- Do not delete the whole file.
+- Do not include commands.
+- The patch will not be applied automatically.
+
+Finding:
+Type: {{finding_type}}
+Severity: {{severity}}
+Line: {{line}}
+Evidence: {{evidence}}
+Recommendation: {{recommendation}}
+
+Expected diff headers:
+--- a/{{file_path}}
++++ b/{{file_path}}
+
+File content:
+{{file_content}}

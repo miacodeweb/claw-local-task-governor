@@ -1,0 +1,10 @@
+scanner:
+  output_dir: reports
+  output_file: scan_result.json
+
+ollama:
+  base_url: "http://127.0.0.1:11434"
+  model: "qwen2.5-coder:7b"
+  temperature: 0.1
+  timeout_seconds: 120
+  max_chars_per_file: 12000

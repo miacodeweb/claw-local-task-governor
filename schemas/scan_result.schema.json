@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ScanResult",
+  "type": "object",
+  "required": [
+    "root",
+    "generated_at",
+    "profile_detected",
+    "profiles",
+    "files_found",
+    "files_ignored",
+    "relevant_files",
+    "files",
+    "ignored"
+  ],
+  "properties": {
+    "root": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "profile_detected": { "type": "string" },
+    "profiles": { "type": "array" },
+    "files_found": { "type": "integer" },
+    "files_ignored": { "type": "integer" },
+    "relevant_files": { "type": "integer" },
+    "files": { "type": "array" },
+    "ignored": { "type": "array" }
+  }
+}

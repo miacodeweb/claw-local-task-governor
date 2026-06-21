@@ -1,0 +1,12 @@
+{
+  "name": "docker",
+  "relevant_extensions": [".yml", ".yaml", ".env"],
+  "important_files": ["Dockerfile", "docker-compose.yml", "compose.yaml", ".dockerignore"],
+  "ignore_dirs": [],
+  "risk_patterns": ["latest", "privileged", "hostNetwork", "password", "secret"],
+  "recommended_prompt": "inspect_config_file.txt",
+  "markers": {
+    "files": ["Dockerfile", "docker-compose.yml", "compose.yaml"],
+    "confidence": 0.7
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FinalReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "project_path",
+    "profile",
+    "generated_at",
+    "summary",
+    "totals",
+    "findings",
+    "files"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["completed", "completed_with_errors", "error"]
+    },
+    "project_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string"
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tasks_total",
+        "tasks_completed",
+        "tasks_failed",
+        "findings_total"
+      ],
+      "properties": {
+        "tasks_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tasks_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tasks_failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "findings_total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "line",
+          "type",
+          "severity",
+          "evidence",
+          "recommendation"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "risk",
+          "status",
+          "summary"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["none", "low", "medium", "high", "critical"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "needs_review", "error"]
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+Use the generic single-file inspection prompt.

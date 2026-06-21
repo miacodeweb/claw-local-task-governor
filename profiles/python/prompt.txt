@@ -1,0 +1,1 @@
+Use the generic code inspection prompt for Python files.

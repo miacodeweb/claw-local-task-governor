@@ -1,0 +1,1 @@
+Use the generic configuration inspection prompt for Docker files.

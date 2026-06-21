@@ -1,0 +1,44 @@
+Your previous response was not valid JSON.
+
+Task:
+Repair the response so it matches the required schema.
+
+Rules:
+- Do not analyze any additional files.
+- Do not invent files.
+- Do not use markdown.
+- Do not add text before or after the JSON.
+- Return only corrected valid JSON.
+- Maximum 5 findings.
+- If there are no clear findings, use findings: [].
+
+Required JSON schema:
+{
+  "file": "string",
+  "status": "ok|needs_review|error",
+  "risk": "none|low|medium|high|critical",
+  "summary": "string",
+  "findings": [
+    {
+      "line": "number|null",
+      "type": "string",
+      "severity": "low|medium|high|critical",
+      "evidence": "string",
+      "recommendation": "string"
+    }
+  ],
+  "needs_related_file": "boolean",
+  "related_files": []
+}
+
+Original file path:
+{{file_path}}
+
+Project profile:
+{{profile}}
+
+Task type:
+{{task_type}}
+
+Invalid response:
+{{file_content}}
