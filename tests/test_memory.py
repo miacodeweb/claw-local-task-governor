@@ -1,6 +1,36 @@
 from governor.memory import DEFAULT_RECOMMENDED_MAX_CHARS, SQLiteMemory
 
 
+def test_memory_creates_required_task_result_columns(tmp_path):
+    memory = SQLiteMemory(tmp_path / "memory.sqlite")
+
+    with memory._connect() as connection:
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(task_results)").fetchall()
+        }
+
+    assert {
+        "id",
+        "project_path",
+        "file_path",
+        "file_hash",
+        "task_id",
+        "task_type",
+        "profile",
+        "model",
+        "prompt_version",
+        "status",
+        "json_valid",
+        "json_repaired",
+        "truncated",
+        "raw_response",
+        "result_json",
+        "errors_json",
+        "created_at",
+    }.issubset(columns)
+
+
 def test_memory_creates_tables_and_reuses_matching_result(tmp_path):
     memory = SQLiteMemory(tmp_path / "memory.sqlite")
     result = {

@@ -74,3 +74,17 @@ def test_scan_applies_profile_specific_relevant_extensions(tmp_path):
     assert result.profile_detected == "php"
     assert files["template.phtml"].relevant is True
     assert files["template.phtml"].sha256
+
+
+def test_scan_can_force_profile(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "package.json").write_text("{}", encoding="utf-8")
+    (project / "main.py").write_text("print('hello')\n", encoding="utf-8")
+
+    result = scan_project(project, output_dir=tmp_path / "reports", profile="python")
+
+    assert result.profile_detected == "python"
+    assert result.profiles[0].reason == "profile forced by user"
+    files = {item.path: item for item in result.files}
+    assert files["main.py"].relevant is True

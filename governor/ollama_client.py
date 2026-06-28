@@ -44,6 +44,14 @@ class OllamaEmptyResponseError(OllamaError):
     """Raised when Ollama returns no usable assistant content."""
 
 
+class OllamaHTTPError(OllamaError):
+    """Raised when Ollama returns a non-model HTTP error."""
+
+
+class OllamaUnexpectedResponseError(OllamaError):
+    """Raised when Ollama returns JSON that does not match the native API shape."""
+
+
 def load_ollama_config(config_path: Path | str | None = None) -> OllamaConfig:
     """Load Ollama config from config.yaml, config.example.yaml, or defaults."""
     path = _select_config_path(config_path)
@@ -82,11 +90,68 @@ class OllamaClient:
                 "temperature": self.config.temperature,
             },
         }
+        response_data = self._request_json("/api/chat", method="POST", payload=payload)
+        message = response_data.get("message")
+        if not isinstance(message, dict):
+            raise OllamaUnexpectedResponseError("Ollama returned an unexpected chat payload")
+
+        content = message.get("content")
+        if not isinstance(content, str) or content.strip() == "":
+            raise OllamaEmptyResponseError("Ollama returned no assistant content")
+
+        return content
+
+    def check_ollama_available(self) -> bool:
+        """Verify that the local Ollama HTTP API responds."""
+        self._request_json("/api/tags")
+        return True
+
+    def list_models(self) -> list[str]:
+        """Return installed Ollama model names using the native /api/tags endpoint."""
+        response_data = self._request_json("/api/tags")
+        models = response_data.get("models")
+        if not isinstance(models, list):
+            raise OllamaUnexpectedResponseError("Ollama returned an unexpected models payload")
+
+        names: list[str] = []
+        for model in models:
+            if isinstance(model, dict) and isinstance(model.get("name"), str):
+                names.append(model["name"])
+        return names
+
+    def analyze_text_with_model(self, prompt: str, text: str, max_chars: int | None = None) -> str:
+        """Send a prompt plus bounded text to the configured local model."""
+        bounded_text = text[: int(max_chars or self.config.max_chars_per_file)]
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": bounded_text},
+        ]
+        return self.chat(messages)
+
+    def _chat_url(self) -> str:
+        return f"{self.config.base_url.rstrip('/')}/api/chat"
+
+    def _url(self, path: str) -> str:
+        return f"{self.config.base_url.rstrip('/')}/{path.lstrip('/')}"
+
+    def _request_json(
+        self,
+        path: str,
+        *,
+        method: str = "GET",
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        data = None
+        headers = {}
+        if payload is not None:
+            data = json.dumps(payload).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+
         request = urllib.request.Request(
-            self._chat_url(),
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
+            self._url(path),
+            data=data,
+            headers=headers,
+            method=method,
         )
 
         try:
@@ -109,25 +174,22 @@ class OllamaClient:
         try:
             response_data = json.loads(raw_response.decode("utf-8"))
         except json.JSONDecodeError as error:
-            raise OllamaEmptyResponseError("Ollama returned invalid JSON") from error
+            raise OllamaUnexpectedResponseError("Ollama returned invalid JSON") from error
 
-        content = response_data.get("message", {}).get("content")
-        if not isinstance(content, str) or content.strip() == "":
-            raise OllamaEmptyResponseError("Ollama returned no assistant content")
+        if not isinstance(response_data, dict):
+            raise OllamaUnexpectedResponseError("Ollama returned a non-object JSON response")
 
-        return content
+        return response_data
 
-    def analyze_text_with_model(self, prompt: str, text: str) -> str:
-        """Send a prompt plus bounded text to the configured local model."""
-        bounded_text = text[: self.config.max_chars_per_file]
-        messages = [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": bounded_text},
-        ]
-        return self.chat(messages)
 
-    def _chat_url(self) -> str:
-        return f"{self.config.base_url.rstrip('/')}/api/chat"
+def check_ollama_available(config_path: Path | str | None = None) -> bool:
+    """Convenience wrapper to verify that the local Ollama API responds."""
+    return OllamaClient(load_ollama_config(config_path)).check_ollama_available()
+
+
+def list_models(config_path: Path | str | None = None) -> list[str]:
+    """Convenience wrapper to list installed Ollama model names."""
+    return OllamaClient(load_ollama_config(config_path)).list_models()
 
 
 def chat(messages: list[dict[str, str]], config_path: Path | str | None = None) -> str:
@@ -201,7 +263,7 @@ def _http_error_to_ollama_error(error: urllib.error.HTTPError) -> OllamaError:
     lowered = body.lower()
     if error.code == 404 or "not found" in lowered or "pull model" in lowered:
         return OllamaModelNotFoundError("Configured Ollama model was not found")
-    return OllamaConnectionError(f"Ollama HTTP error {error.code}: {body}")
+    return OllamaHTTPError(f"Ollama HTTP error {error.code}: {body}")
 
 
 def _url_error_to_ollama_error(error: urllib.error.URLError) -> OllamaError:

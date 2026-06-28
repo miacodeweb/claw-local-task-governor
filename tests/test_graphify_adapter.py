@@ -1,8 +1,10 @@
 import json
 
 from governor.graphify_adapter import (
+    detect_graphify_output,
     detect_graphify_outputs,
     extract_relevant_nodes,
+    get_graph_summary,
     load_graph_json,
     load_graphify_context,
 )
@@ -74,3 +76,132 @@ def test_graphify_context_is_optional_when_missing(tmp_path):
     assert context["detected"] is False
     assert context["used"] is False
     assert context["candidate_files"] == []
+
+
+def test_detect_graphify_output_reports_unavailable_when_missing(tmp_path):
+    diagnostic = detect_graphify_output(tmp_path)
+    summary = get_graph_summary(tmp_path)
+
+    assert diagnostic["available"] is False
+    assert summary["available"] is False
+    assert summary["nodes_detected"] == 0
+    assert summary["referenced_files"] == []
+    assert summary["warnings"] == []
+
+
+def test_get_graph_summary_handles_valid_graph_json(tmp_path):
+    output_dir = tmp_path / "graphify-out"
+    output_dir.mkdir()
+    graph = {
+        "nodes": [
+            {"id": "main", "path": "src/main.py", "centrality": 0.8},
+            {"id": "config", "file_path": "config/app.json", "important": True},
+        ],
+        "links": [{"source": "main", "target": "config", "type": "imports"}],
+    }
+    (output_dir / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+    summary = get_graph_summary(tmp_path)
+
+    assert summary["available"] is True
+    assert summary["nodes_detected"] == 2
+    assert summary["edges_detected"] == 1
+    assert summary["referenced_files"] == ["config/app.json", "src/main.py"]
+    assert summary["important_nodes"][0]["path"] == "config/app.json"
+    assert summary["relationships"] == [{"source": "main", "target": "config", "type": "imports"}]
+
+
+def test_get_graph_summary_extracts_deep_context_signals(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "core.py").write_text("print('core')\n", encoding="utf-8")
+    (tmp_path / "src" / "api.py").write_text("print('api')\n", encoding="utf-8")
+    output_dir = tmp_path / "graphify-out"
+    output_dir.mkdir()
+    graph = {
+        "metadata": {
+            "confidence": 0.86,
+            "rationale": "Graphify found a central application module.",
+            "communities": [{"id": "backend", "files": ["src/core.py", "src/api.py"]}],
+            "surprising_connections": [
+                {"source": "src/core.py", "target": "config/prod.json", "reason": "runtime config access"}
+            ],
+        },
+        "nodes": [
+            {"id": "core", "path": "src/core.py", "centrality": 0.95, "important": True},
+            {"id": "api", "path": "src/api.py"},
+            {"id": "missing", "path": "config/prod.json"},
+        ],
+        "edges": [
+            {"source": "core", "target": "api"},
+            {"source": "core", "target": "missing"},
+            {"source": "api", "target": "core"},
+        ],
+    }
+    (output_dir / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+    summary = get_graph_summary(tmp_path)
+
+    assert summary["available"] is True
+    assert summary["graph_path"].endswith("graph.json")
+    assert summary["nodes_count"] == 3
+    assert summary["edges_count"] == 3
+    assert summary["important_files"] == ["src/core.py"]
+    assert summary["central_nodes"][0]["path"] == "src/core.py"
+    assert summary["high_connectivity_files"] == ["src/core.py"]
+    assert summary["communities"][0]["files"] == ["src/api.py", "src/core.py"]
+    assert summary["surprising_connections"][0]["reason"] == "runtime config access"
+    assert summary["confidence"] == 0.86
+    assert "central application module" in summary["rationale"]
+    assert any("config/prod.json" in warning for warning in summary["warnings"])
+
+
+def test_get_graph_summary_handles_invalid_graph_json(tmp_path):
+    output_dir = tmp_path / "graphify-out"
+    output_dir.mkdir()
+    (output_dir / "graph.json").write_text("{invalid", encoding="utf-8")
+
+    assert load_graph_json(tmp_path) is None
+    summary = get_graph_summary(tmp_path)
+
+    assert summary["available"] is True
+    assert summary["nodes_detected"] == 0
+    assert summary["referenced_files"] == []
+    assert summary["warnings"]
+    assert "invalid JSON" in summary["warnings"][0]
+
+
+def test_load_graph_json_accepts_utf8_bom(tmp_path):
+    output_dir = tmp_path / "graphify-out"
+    output_dir.mkdir()
+    (output_dir / "graph.json").write_text('\ufeff{"nodes": [{"path": "README.md"}]}', encoding="utf-8")
+
+    loaded = load_graph_json(tmp_path)
+
+    assert loaded == {"nodes": [{"path": "README.md"}]}
+
+
+def test_get_graph_summary_warns_for_unknown_minimal_structure(tmp_path):
+    output_dir = tmp_path / "graphify-out"
+    output_dir.mkdir()
+    (output_dir / "graph.json").write_text(json.dumps({"metadata": {"tool": "graphify"}}), encoding="utf-8")
+
+    summary = get_graph_summary(tmp_path)
+
+    assert summary["available"] is True
+    assert summary["nodes_detected"] == 0
+    assert summary["edges_detected"] == 0
+    assert summary["warnings"] == ["graph.json was loaded but no recognizable nodes or edges were found"]
+
+
+def test_get_graph_summary_detects_nearby_parent_graphify_output(tmp_path):
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    output_dir = tmp_path / "graphify-out"
+    output_dir.mkdir()
+    graph = {"graph": {"nodes": [{"id": "README.md", "label": "README.md"}]}}
+    (output_dir / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+    summary = get_graph_summary(project_dir)
+
+    assert summary["available"] is True
+    assert summary["referenced_files"] == ["README.md"]

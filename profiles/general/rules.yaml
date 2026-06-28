@@ -24,6 +24,7 @@
     "api_key"
   ],
   "recommended_prompt": "inspect_code_file.txt",
+  "base_priority": "low",
   "markers": {
     "confidence": 0.4
   }

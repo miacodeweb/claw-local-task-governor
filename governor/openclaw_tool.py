@@ -15,8 +15,21 @@ from governor.task_queue import generate_tasks_from_scan_result
 from governor.task_runner import run_pending_tasks
 
 
-ALLOWED_PROFILES = {"auto", "general", "php", "wordpress", "javascript", "python", "java", "docker"}
-ALLOWED_MODES = {"general", "security", "code_quality", "performance", "seo"}
+ALLOWED_PROFILES = {
+    "auto",
+    "general",
+    "php",
+    "wordpress",
+    "javascript",
+    "python",
+    "java",
+    "docker",
+    "config_files",
+    "windows_folder",
+    "linux_folder",
+    "documentation",
+}
+ALLOWED_MODES = {"general", "security", "code_quality"}
 DEFAULT_OUTPUT_DIR = Path("reports")
 AUDIT_JSON_PATTERN = "audit-*.json"
 
@@ -26,57 +39,53 @@ def local_project_audit(
     path: Path | str,
     profile: str = "auto",
     mode: str = "general",
-    max_files: int = 50,
+    max_tasks: int | None = None,
+    max_files: int | None = None,
+    use_memory: bool = True,
+    use_graphify: bool = True,
     read_only: bool = True,
     output_dir: Path | str = DEFAULT_OUTPUT_DIR,
     client: OllamaClient | None = None,
     memory: SQLiteMemory | None = None,
 ) -> dict[str, Any]:
-    """Run the read-only scan -> tasks -> run-tasks -> report flow."""
-    profile = validate_choice("profile", profile, ALLOWED_PROFILES)
-    mode = validate_choice("mode", mode, ALLOWED_MODES)
-    if max_files < 1:
-        raise ValueError("max_files must be greater than 0")
-    if read_only is not True:
-        return rejected_response("read_only must be true; editing is not supported")
+    """Run the read-only audit through the shared LocalScope adapter contract."""
+    from adapters.openclaw.local_project_audit import local_project_audit as adapter_audit
 
-    project_root = Path(path).expanduser().resolve(strict=True)
-    if not project_root.is_dir():
-        raise NotADirectoryError(f"project path is not a directory: {project_root}")
-
-    output_path = Path(output_dir)
-    scan_result = scan_project(project_root, output_dir=output_path)
-    scan_result_path = output_path / "scan_result.json"
-    if profile != "auto":
-        write_profile_override(scan_result_path, profile)
-
-    generate_tasks_from_scan_result(scan_result_path, output_dir=output_path)
-    run_pending_tasks(
-        project_root,
-        max_tasks=max_files,
-        output_dir=output_path,
+    response = adapter_audit(
+        path=path,
+        profile=profile,
+        mode=mode,
+        max_tasks=max_tasks,
+        max_files=max_files,
+        use_memory=use_memory,
+        use_graphify=use_graphify,
+        read_only=read_only,
+        output_dir=output_dir,
         client=client,
         memory=memory,
     )
+    return with_legacy_fields(response)
 
-    inputs = load_audit_inputs(project_root, output_dir=output_path)
-    report = build_final_report(inputs)
-    report["mode"] = mode
-    report["profile_requested"] = profile
-    markdown_path, _ = write_audit_reports(report, output_dir=output_path)
-    totals = report.get("totals", {})
 
-    return {
-        "status": report.get("status", "completed"),
-        "report_path": str(markdown_path.resolve()),
-        "summary": report.get("summary", ""),
-        "files_scanned": int(totals.get("files_scanned", scan_result.files_found)),
-        "files_analyzed": int(totals.get("files_analyzed", 0)),
-        "files_reused_from_memory": int(totals.get("files_reused_from_memory", 0)),
-        "json_valid": int(totals.get("json_valid", 0)),
-        "json_repaired": int(totals.get("json_repaired", 0)),
-        "json_failed": int(totals.get("json_failed", 0)),
-    }
+def with_legacy_fields(response: dict[str, Any]) -> dict[str, Any]:
+    """Keep earlier OpenClaw CLI/test fields while the new adapter contract settles."""
+    totals = {}
+    report_json = response.get("report_json")
+    if report_json:
+        try:
+            report = json.loads(Path(report_json).read_text(encoding="utf-8"))
+            totals = report.get("totals", {})
+        except (OSError, json.JSONDecodeError):
+            totals = {}
+
+    response.setdefault("report_path", response.get("report_markdown", ""))
+    response.setdefault("files_scanned", int(totals.get("files_scanned", 0)))
+    response.setdefault("files_analyzed", int(totals.get("files_analyzed", response.get("tasks_processed", 0))))
+    response.setdefault(
+        "files_reused_from_memory",
+        int(totals.get("files_reused_from_memory", response.get("reused", 0))),
+    )
+    return response
 
 
 def validate_choice(name: str, value: str, allowed: set[str]) -> str:
@@ -87,17 +96,25 @@ def validate_choice(name: str, value: str, allowed: set[str]) -> str:
     return normalized
 
 
-def rejected_response(summary: str) -> dict[str, Any]:
+def failed_response(summary: str, errors: list[str] | None = None) -> dict[str, Any]:
     return {
-        "status": "rejected",
-        "report_path": "",
-        "summary": summary,
-        "files_scanned": 0,
-        "files_analyzed": 0,
-        "files_reused_from_memory": 0,
+        "status": "failed",
+        "adapter": "openclaw",
+        "project_path": "",
+        "profile_detected": "",
+        "report_markdown": "",
+        "report_json": "",
+        "tasks_processed": 0,
+        "reused": 0,
         "json_valid": 0,
         "json_repaired": 0,
         "json_failed": 0,
+        "summary": summary,
+        "errors": errors or [],
+        "report_path": "",
+        "files_scanned": 0,
+        "files_analyzed": 0,
+        "files_reused_from_memory": 0,
     }
 
 

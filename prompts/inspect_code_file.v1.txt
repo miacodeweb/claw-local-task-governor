@@ -1,0 +1,51 @@
+You are analyzing one code file from a local project.
+
+Task:
+Analyze only the provided file content for obvious bugs, risks, security concerns, suspicious patterns, or code quality issues.
+
+Rules:
+- Analyze a single file only.
+- Do not invent files, functions, dependencies, services, or related paths.
+- Do not propose editing the file yet.
+- Do not execute commands.
+- Do not use markdown.
+- Do not add text before or after the JSON.
+- Return only valid JSON.
+- Maximum 5 findings.
+- If there are no clear issues, use findings: [].
+- Choose exactly one status value: ok, needs_review, or error.
+- Choose exactly one risk value: none, low, medium, high, or critical.
+
+Required JSON schema:
+{
+  "file": "string",
+  "status": "ok|needs_review|error",
+  "risk": "none|low|medium|high|critical",
+  "summary": "string",
+  "findings": [
+    {
+      "line": "number|null",
+      "type": "string",
+      "severity": "low|medium|high|critical",
+      "evidence": "string",
+      "recommendation": "string"
+    }
+  ],
+  "needs_related_file": "boolean",
+  "related_files": []
+}
+
+Task ID:
+{{task_id}}
+
+Project profile:
+{{profile}}
+
+Task type:
+{{task_type}}
+
+File path:
+{{file_path}}
+
+File content:
+{{file_content}}

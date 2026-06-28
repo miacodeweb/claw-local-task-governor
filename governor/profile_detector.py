@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from governor.profiles import profile_for_project
+from governor.profiles import detect_profile_for_project, profile_for_project
 
 
 @dataclass(frozen=True)
@@ -15,15 +15,21 @@ class ProfileSignal:
     reason: str
 
 
-def detect_profiles(root: Path) -> list[ProfileSignal]:
+def detect_profiles(root: Path, forced_profile: str | None = None) -> list[ProfileSignal]:
     """Return ranked project profile signals for a workspace root."""
     root = root.resolve()
+    if forced_profile and forced_profile != "auto":
+        _profile, matches = detect_profile_for_project(root, forced_profile=forced_profile)
+        return [
+            ProfileSignal(profile=profile.name, confidence=confidence, reason=reason)
+            for profile, confidence, reason in matches
+        ]
     return [
         ProfileSignal(profile=profile.name, confidence=confidence, reason=reason)
         for profile, confidence, reason in profile_for_project(root)
     ]
 
 
-def detect_best_profile(root: Path) -> ProfileSignal:
+def detect_best_profile(root: Path, forced_profile: str | None = None) -> ProfileSignal:
     """Return the highest-confidence project profile."""
-    return detect_profiles(root)[0]
+    return detect_profiles(root, forced_profile=forced_profile)[0]

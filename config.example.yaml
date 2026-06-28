@@ -2,9 +2,42 @@ scanner:
   output_dir: reports
   output_file: scan_result.json
 
+model_provider:
+  provider: "ollama"
+  model: "qwen2.5-coder:7b"
+
+providers:
+  ollama:
+    base_url: "http://127.0.0.1:11434"
+    timeout_seconds: 120
+
+  openai_compatible:
+    base_url: ""
+    api_key_env: "LOCAL_SCOPE_OPENAI_COMPAT_API_KEY"
+    model: ""
+    timeout_seconds: 120
+
 ollama:
   base_url: "http://127.0.0.1:11434"
   model: "qwen2.5-coder:7b"
   temperature: 0.1
   timeout_seconds: 120
   max_chars_per_file: 12000
+
+adaptive_limits:
+  enabled: true
+  default_max_chars: 12000
+  min_max_chars: 4000
+  hard_max_chars: 20000
+  reduce_on_json_fail_rate: 0.30
+  reduce_on_model_fail_rate: 0.20
+  increase_on_success_rate: 0.90
+  adjustment_step_percent: 20
+
+logging:
+  enabled: true
+  level: "info"
+  directory: "logs"
+  jsonl: true
+  debug_raw_model_output: false
+  redact_secrets: true

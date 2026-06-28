@@ -1,0 +1,1 @@
+"""LocalScope external adapter package."""

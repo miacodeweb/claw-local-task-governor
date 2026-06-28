@@ -2,45 +2,48 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import json
+
+from governor.model_profiles import (
+    DEFAULT_RECOMMENDED_MAX_CHARS,
+    MAX_RECOMMENDED_MAX_CHARS,
+    MIN_RECOMMENDED_MAX_CHARS,
+    SUCCESS_GROWTH_CHARS,
+    ModelProfileEvent,
+    ModelProfileStats,
+    ModelProfileStore,
+    ensure_model_profiles_schema,
+)
+
 
 DEFAULT_MEMORY_PATH = Path("data") / "memory.sqlite"
-DEFAULT_RECOMMENDED_MAX_CHARS = 12000
-MIN_RECOMMENDED_MAX_CHARS = 2000
-MAX_RECOMMENDED_MAX_CHARS = 24000
-SUCCESS_GROWTH_CHARS = 500
 
 
 @dataclass(frozen=True)
 class ReusableTaskResult:
+    project_path: str
+    task_id: str
     file_path: str
     file_hash: str
     task_type: str
+    profile: str
     model: str
     prompt_version: str
+    status: str
     json_valid: bool
     json_repaired: bool
+    truncated: bool
     risk: str
-    result_json: dict[str, Any]
+    raw_response: str
+    result_json: dict[str, Any] | None
+    errors: list[str]
     created_at: str
-
-
-@dataclass(frozen=True)
-class ModelProfileStats:
-    model: str
-    task_type: str
-    success_count: int
-    json_fail_count: int
-    json_repair_count: int
-    average_response_time: float
-    recommended_max_chars: int
-    updated_at: str
 
 
 class SQLiteMemory:
@@ -124,14 +127,14 @@ class SQLiteMemory:
                 """
                 SELECT tr.*
                 FROM task_results tr
-                JOIN projects p ON p.id = tr.project_id
-                WHERE p.path = ?
+                WHERE tr.project_path = ?
                   AND tr.file_path = ?
                   AND tr.file_hash = ?
                   AND tr.task_type = ?
                   AND tr.model = ?
                   AND tr.prompt_version = ?
                   AND tr.json_valid = 1
+                  AND tr.status = 'completed'
                 ORDER BY tr.created_at DESC, tr.id DESC
                 LIMIT 1
                 """,
@@ -142,15 +145,22 @@ class SQLiteMemory:
             return None
 
         return ReusableTaskResult(
+            project_path=str(row["project_path"]),
+            task_id=str(row["task_id"] or ""),
             file_path=str(row["file_path"]),
             file_hash=str(row["file_hash"]),
             task_type=str(row["task_type"]),
+            profile=str(row["profile"] or "general"),
             model=str(row["model"]),
             prompt_version=str(row["prompt_version"]),
+            status=str(row["status"] or "completed"),
             json_valid=bool(row["json_valid"]),
             json_repaired=bool(row["json_repaired"]),
+            truncated=bool(row["truncated"]),
             risk=str(row["risk"]),
-            result_json=json.loads(row["result_json"]),
+            raw_response=str(row["raw_response"] or ""),
+            result_json=json.loads(row["result_json"]) if row["result_json"] else None,
+            errors=json.loads(row["errors_json"]) if row["errors_json"] else [],
             created_at=str(row["created_at"]),
         )
 
@@ -168,51 +178,81 @@ class SQLiteMemory:
         json_repaired: bool,
         risk: str,
         result_json: dict[str, Any] | None,
+        task_id: str = "",
+        profile: str = "general",
+        status: str = "completed",
+        truncated: bool = False,
+        raw_response: str = "",
+        errors: list[str] | None = None,
+        created_at: str | None = None,
         response_time_seconds: float | None = None,
         current_max_chars: int | None = None,
+        input_chars: int = 0,
+        output_chars: int = 0,
     ) -> int:
         project_id = self.upsert_project(project_path, project_type)
         self.upsert_file(project_id, file_path, file_hash)
-        now = _utc_now()
+        now = created_at or _utc_now()
         with self._connect() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO task_results (
                     project_id,
+                    project_path,
                     file_path,
                     file_hash,
+                    task_id,
                     task_type,
+                    profile,
                     model,
                     prompt_version,
+                    status,
                     json_valid,
                     json_repaired,
+                    truncated,
                     risk,
+                    raw_response,
                     result_json,
+                    errors_json,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     project_id,
+                    project_path,
                     file_path,
                     file_hash,
+                    task_id,
                     task_type,
+                    profile,
                     model,
                     prompt_version,
+                    status,
                     1 if json_valid else 0,
                     1 if json_repaired else 0,
+                    1 if truncated else 0,
                     risk,
+                    raw_response,
                     json.dumps(result_json or {}, sort_keys=True),
+                    json.dumps(errors or [], sort_keys=True),
                     now,
                 ),
             )
             self.update_model_profile(
                 model=model,
                 task_type=task_type,
+                profile=profile,
+                prompt_version=prompt_version,
+                status=status,
                 json_valid=json_valid,
                 json_repaired=json_repaired,
+                truncated=truncated,
                 response_time_seconds=response_time_seconds,
                 current_max_chars=current_max_chars,
+                input_chars=input_chars,
+                output_chars=output_chars,
+                error=(errors or [""])[0] if errors else "",
                 connection=connection,
             )
             return int(cursor.lastrowid)
@@ -222,135 +262,56 @@ class SQLiteMemory:
         *,
         model: str,
         task_type: str,
+        profile: str = "general",
+        prompt_version: str = "file-analysis-v1",
+        status: str = "completed",
         json_valid: bool,
         json_repaired: bool,
+        truncated: bool = False,
         response_time_seconds: float | None = None,
         current_max_chars: int | None = None,
+        input_chars: int = 0,
+        output_chars: int = 0,
+        error: str = "",
         connection: sqlite3.Connection | None = None,
     ) -> None:
         close_connection = connection is None
         conn = connection or self._connect()
         try:
-            now = _utc_now()
-            row = conn.execute(
-                """
-                SELECT id,
-                       success_count,
-                       json_fail_count,
-                       json_repair_count,
-                       average_response_time,
-                       recommended_max_chars
-                FROM model_profiles
-                WHERE model = ? AND task_type = ?
-                """,
-                (model, task_type),
-            ).fetchone()
-            base_max_chars = int(current_max_chars or DEFAULT_RECOMMENDED_MAX_CHARS)
-            if row is None:
-                recommended_max_chars = _adapt_recommended_max_chars(
-                    current_max_chars=base_max_chars,
+            store = object.__new__(ModelProfileStore)
+            store.db_path = self.db_path
+            store.record_task_result_with_connection(
+                conn,
+                ModelProfileEvent(
+                    model=model,
+                    task_type=task_type,
+                    profile=profile,
+                    prompt_version=prompt_version,
+                    status=status,
                     json_valid=json_valid,
                     json_repaired=json_repaired,
-                )
-                conn.execute(
-                    """
-                    INSERT INTO model_profiles (
-                        model,
-                        task_type,
-                        success_count,
-                        json_fail_count,
-                        json_repair_count,
-                        average_response_time,
-                        recommended_max_chars,
-                        updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        model,
-                        task_type,
-                        1 if json_valid else 0,
-                        0 if json_valid else 1,
-                        1 if json_repaired else 0,
-                        float(response_time_seconds or 0),
-                        recommended_max_chars,
-                        now,
-                    ),
-                )
-            else:
-                previous_total = int(row["success_count"]) + int(row["json_fail_count"])
-                average_response_time = _update_average_response_time(
-                    previous_average=float(row["average_response_time"] or 0),
-                    previous_total=previous_total,
-                    response_time_seconds=response_time_seconds,
-                )
-                recommended_max_chars = _adapt_recommended_max_chars(
-                    current_max_chars=int(row["recommended_max_chars"] or base_max_chars),
-                    json_valid=json_valid,
-                    json_repaired=json_repaired,
-                )
-                conn.execute(
-                    """
-                    UPDATE model_profiles
-                    SET success_count = success_count + ?,
-                        json_fail_count = json_fail_count + ?,
-                        json_repair_count = json_repair_count + ?,
-                        average_response_time = ?,
-                        recommended_max_chars = ?,
-                        updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (
-                        1 if json_valid else 0,
-                        0 if json_valid else 1,
-                        1 if json_repaired else 0,
-                        average_response_time,
-                        recommended_max_chars,
-                        now,
-                        row["id"],
-                    ),
-                )
+                    truncated=truncated,
+                    response_time_ms=None
+                    if response_time_seconds is None
+                    else float(response_time_seconds) * 1000,
+                    input_chars=input_chars,
+                    output_chars=output_chars,
+                    current_max_chars=current_max_chars,
+                    error=error,
+                ),
+            )
         finally:
             if close_connection:
                 conn.commit()
                 conn.close()
 
     def get_model_profile(self, model: str, task_type: str) -> ModelProfileStats | None:
-        with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT model,
-                       task_type,
-                       success_count,
-                       json_fail_count,
-                       json_repair_count,
-                       average_response_time,
-                       recommended_max_chars,
-                       updated_at
-                FROM model_profiles
-                WHERE model = ? AND task_type = ?
-                """,
-                (model, task_type),
-            ).fetchone()
-        return _profile_from_row(row) if row is not None else None
+        store = ModelProfileStore(self.db_path)
+        return store.get_profile(model=model, task_type=task_type)
 
     def list_model_profiles(self) -> list[ModelProfileStats]:
-        with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT model,
-                       task_type,
-                       success_count,
-                       json_fail_count,
-                       json_repair_count,
-                       average_response_time,
-                       recommended_max_chars,
-                       updated_at
-                FROM model_profiles
-                ORDER BY model, task_type
-                """
-            ).fetchall()
-        return [_profile_from_row(row) for row in rows]
+        store = ModelProfileStore(self.db_path)
+        return store.list_profiles()
 
     def recommended_max_chars(
         self,
@@ -362,6 +323,9 @@ class SQLiteMemory:
         if profile is None:
             return int(fallback)
         return profile.recommended_max_chars
+
+    def model_profile_store(self) -> ModelProfileStore:
+        return ModelProfileStore(self.db_path)
 
     def _initialize(self) -> None:
         with self._connect() as connection:
@@ -390,15 +354,22 @@ class SQLiteMemory:
                 CREATE TABLE IF NOT EXISTS task_results (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     project_id INTEGER,
+                    project_path TEXT,
                     file_path TEXT,
                     file_hash TEXT,
+                    task_id TEXT,
                     task_type TEXT,
+                    profile TEXT,
                     model TEXT,
                     prompt_version TEXT,
+                    status TEXT,
                     json_valid INTEGER,
                     json_repaired INTEGER,
+                    truncated INTEGER DEFAULT 0,
                     risk TEXT,
+                    raw_response TEXT,
                     result_json TEXT,
+                    errors_json TEXT,
                     created_at TEXT
                 );
 
@@ -416,7 +387,28 @@ class SQLiteMemory:
                 );
                 """
             )
-            _ensure_column(connection, "model_profiles", "average_response_time", "REAL DEFAULT 0")
+            _ensure_column(connection, "task_results", "project_path", "TEXT")
+            _ensure_column(connection, "task_results", "task_id", "TEXT")
+            _ensure_column(connection, "task_results", "profile", "TEXT")
+            _ensure_column(connection, "task_results", "status", "TEXT")
+            _ensure_column(connection, "task_results", "truncated", "INTEGER DEFAULT 0")
+            _ensure_column(connection, "task_results", "raw_response", "TEXT")
+            _ensure_column(connection, "task_results", "errors_json", "TEXT")
+            connection.execute(
+                """
+                UPDATE task_results
+                SET project_path = (
+                    SELECT projects.path FROM projects WHERE projects.id = task_results.project_id
+                )
+                WHERE project_path IS NULL
+                """
+            )
+            connection.execute("UPDATE task_results SET profile = 'general' WHERE profile IS NULL")
+            connection.execute("UPDATE task_results SET status = 'completed' WHERE status IS NULL")
+            connection.execute("UPDATE task_results SET truncated = 0 WHERE truncated IS NULL")
+            connection.execute("UPDATE task_results SET raw_response = '' WHERE raw_response IS NULL")
+            connection.execute("UPDATE task_results SET errors_json = '[]' WHERE errors_json IS NULL")
+            ensure_model_profiles_schema(connection)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.db_path)
@@ -426,45 +418,6 @@ class SQLiteMemory:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _adapt_recommended_max_chars(
-    *,
-    current_max_chars: int,
-    json_valid: bool,
-    json_repaired: bool,
-) -> int:
-    if not json_valid:
-        return max(MIN_RECOMMENDED_MAX_CHARS, int(current_max_chars * 0.75))
-    if json_repaired:
-        return max(MIN_RECOMMENDED_MAX_CHARS, int(current_max_chars))
-    return min(MAX_RECOMMENDED_MAX_CHARS, int(current_max_chars) + SUCCESS_GROWTH_CHARS)
-
-
-def _update_average_response_time(
-    *,
-    previous_average: float,
-    previous_total: int,
-    response_time_seconds: float | None,
-) -> float:
-    if response_time_seconds is None:
-        return previous_average
-    if previous_total <= 0:
-        return float(response_time_seconds)
-    return ((previous_average * previous_total) + float(response_time_seconds)) / (previous_total + 1)
-
-
-def _profile_from_row(row: sqlite3.Row) -> ModelProfileStats:
-    return ModelProfileStats(
-        model=str(row["model"]),
-        task_type=str(row["task_type"]),
-        success_count=int(row["success_count"]),
-        json_fail_count=int(row["json_fail_count"]),
-        json_repair_count=int(row["json_repair_count"]),
-        average_response_time=float(row["average_response_time"] or 0),
-        recommended_max_chars=int(row["recommended_max_chars"]),
-        updated_at=str(row["updated_at"]),
-    )
 
 
 def _ensure_column(

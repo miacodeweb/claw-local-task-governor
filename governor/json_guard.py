@@ -20,6 +20,25 @@ class JSONGuardResult:
     errors: list[str]
     raw_text: str
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "repaired": self.repaired,
+            "data": self.data,
+            "errors": self.errors,
+            "raw_text": self.raw_text,
+        }
+
+
+class JSONGuard:
+    """Reusable JSON guard bound to an optional schema."""
+
+    def __init__(self, schema: str | Path | dict | None = None) -> None:
+        self.schema = schema
+
+    def validate(self, raw_text: str) -> JSONGuardResult:
+        return guard_json(raw_text, self.schema)
+
 
 def guard_json(raw_text: str, schema: str | Path | dict | None = None) -> JSONGuardResult:
     """Parse imperfect JSON text and optionally validate it against a schema."""
@@ -40,7 +59,7 @@ def guard_json(raw_text: str, schema: str | Path | dict | None = None) -> JSONGu
         try:
             data = json.loads(candidate)
         except json.JSONDecodeError as error:
-            parse_errors.append(f"json parse error: {error.msg}")
+            parse_errors.append(f"json parse error at line {error.lineno}, column {error.colno}: {error.msg}")
             continue
 
         errors = validate_schema(data, schema_data) if schema_data is not None else []
@@ -56,7 +75,7 @@ def guard_json(raw_text: str, schema: str | Path | dict | None = None) -> JSONGu
         valid=False,
         repaired=False,
         data=None,
-        errors=parse_errors or ["no JSON object or array found"],
+        errors=_final_parse_errors(raw_text, parse_errors),
         raw_text=raw_text,
     )
 
@@ -103,6 +122,12 @@ def build_json_candidates(raw_text: str) -> list[tuple[str, bool]]:
         add(without_trailing_commas, repaired or without_trailing_commas != text)
 
     return candidates
+
+
+def _final_parse_errors(raw_text: str, parse_errors: list[str]) -> list[str]:
+    if "{" not in raw_text and "[" not in raw_text:
+        return ["no JSON object or array found"]
+    return parse_errors or ["no JSON object or array found"]
 
 
 def strip_markdown_fence(text: str) -> str:

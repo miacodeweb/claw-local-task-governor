@@ -1,11 +1,13 @@
 {
-  "name": "claw-local-task-governor",
+  "name": "localscope",
   "integration_type": "cli_wrapper",
+  "native_plugin": false,
   "tools": [
     {
-      "name": "local_project_audit",
-      "description": "Run a read-only local project audit through the governor flow: scan, tasks, run-tasks, report.",
-      "command": "python -m governor.main openclaw-audit",
+      "name": "local_scope_audit",
+      "description": "Run one read-only LocalScope audit through the high-level flow: scan, tasks, run-tasks, report.",
+      "command": "python -m adapters.openclaw.local_scope_audit",
+      "aliases": ["local_project_audit"],
       "arguments": {
         "path": {
           "type": "string",
@@ -22,100 +24,52 @@
           "type": "string",
           "required": false,
           "default": "general",
-          "enum": ["general", "security", "code_quality", "performance", "seo"]
+          "enum": ["general", "security", "code_quality"]
         },
-        "max_files": {
+        "max_tasks": {
           "type": "integer",
           "required": false,
-          "default": 50,
+          "default": 5,
           "minimum": 1
+        },
+        "use_memory": {
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        "use_graphify": {
+          "type": "boolean",
+          "required": false,
+          "default": true
         },
         "read_only": {
           "type": "boolean",
-          "required": false,
+          "required": true,
           "default": true,
           "const": true
         }
       },
       "response": {
-        "status": "string",
-        "report_path": "string",
-        "summary": "string",
-        "files_scanned": "integer",
-        "files_analyzed": "integer",
-        "files_reused_from_memory": "integer",
+        "status": "completed|failed",
+        "adapter": "openclaw",
+        "project_path": "string",
+        "profile_detected": "string",
+        "report_markdown": "string",
+        "report_json": "string",
+        "tasks_processed": "integer",
+        "reused": "integer",
         "json_valid": "integer",
         "json_repaired": "integer",
-        "json_failed": "integer"
+        "json_failed": "integer",
+        "summary": "string",
+        "errors": "array"
       },
       "safety": {
         "read_only": true,
         "exposes_low_level_file_tools": false,
-        "allows_editing": false
-      }
-    },
-    {
-      "name": "local_audit_status",
-      "description": "Return recent local audit status from existing governor output files without reanalyzing files.",
-      "command": "python -m governor.main openclaw-status",
-      "arguments": {
-        "output_dir": {
-          "type": "string",
-          "required": false,
-          "default": "reports",
-          "description": "Directory containing audit reports and task_results.json."
-        },
-        "limit": {
-          "type": "integer",
-          "required": false,
-          "default": 5,
-          "minimum": 1
-        }
-      },
-      "response": {
-        "status": "string",
-        "output_dir": "string",
-        "audits_count": "integer",
-        "recent_audits": "array",
-        "current_task_results": "object"
-      },
-      "safety": {
-        "read_only": true,
-        "reanalyzes_files": false,
-        "allows_editing": false
-      }
-    },
-    {
-      "name": "local_audit_report",
-      "description": "Return a compact summary for an existing final audit report.",
-      "command": "python -m governor.main openclaw-report",
-      "arguments": {
-        "report_path": {
-          "type": "string",
-          "required": true,
-          "description": "Path to an existing audit-*.json or audit-*.md report."
-        }
-      },
-      "response": {
-        "status": "string",
-        "report_path": "string",
-        "json_report_path": "string",
-        "summary": "string",
-        "profile_detected": "string",
-        "files_scanned": "integer",
-        "files_analyzed": "integer",
-        "files_reused_from_memory": "integer",
-        "json_valid": "integer",
-        "json_repaired": "integer",
-        "json_failed": "integer",
-        "findings_by_priority": "object",
-        "failed_tasks": "integer",
-        "recommendations": "array"
-      },
-      "safety": {
-        "read_only": true,
-        "reanalyzes_files": false,
-        "allows_editing": false
+        "exposes_shell_tools": false,
+        "allows_editing": false,
+        "allows_patch_application": false
       }
     }
   ]

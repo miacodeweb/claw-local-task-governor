@@ -11,6 +11,8 @@ PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
 TASK_PROMPT_FILES = {
     "inspect_code_file": "inspect_code_file.txt",
     "inspect_config_file": "inspect_config_file.txt",
+    "inspect_documentation_file": "inspect_documentation_file.txt",
+    "inspect_unknown_file": "inspect_unknown_file.txt",
 }
 
 
@@ -24,6 +26,7 @@ def render_prompt(
     profile: str,
     task_type: str,
     file_content: str,
+    task_id: str = "",
     prompts_dir: Path | str = PROMPTS_DIR,
 ) -> str:
     """Render the prompt template for a supported file inspection task."""
@@ -35,6 +38,7 @@ def render_prompt(
     return render_template(
         template,
         {
+            "task_id": task_id,
             "file_path": file_path,
             "profile": profile,
             "task_type": task_type,

@@ -1,0 +1,9 @@
+{
+  "name": "calibration-js",
+  "version": "1.0.0",
+  "description": "Calibration fixture for JavaScript",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo ok"
+  }
+}

@@ -2,11 +2,15 @@
 
 ## Project name
 
-**Claw Local Task Governor**
+**LocalScope**
 
-Working name in Spanish: **Gobernador Local de Tareas para OpenClaw**.
+Previous MVP name: **Claw Local Task Governor**.
 
-This file is intended to be given to Codex as the main project context before starting development.
+Historical Spanish working name: **Gobernador Local de Tareas para OpenClaw**.
+
+This file keeps its original filename for continuity, but the project is now called LocalScope.
+
+LocalScope is a local-first project and folder analysis suite for AI agents and local models. It scans projects, creates microtasks, uses local models through Ollama, validates model output with JSON Guard, stores incremental memory, optionally consumes Graphify knowledge graphs, and generates Markdown/JSON reports.
 
 ---
 
@@ -19,6 +23,7 @@ The user already has the following installed on a Windows 10 PC:
 - Docker
 - Ollama for local models
 - OpenClaw installed locally
+- OpenCode adapter wrapper available for local testing
 - Graphify installed
 - Local low-resource models available through Ollama
 
@@ -28,7 +33,7 @@ The project must be designed first for local development on Windows/WSL, but the
 
 ## Core problem
 
-Local low-resource models often fail when used with agent systems such as OpenClaw because they receive too much context, too many tools, too many files, or complex tool schemas. Typical failures include:
+Local low-resource models often fail when used with agent systems because they receive too much context, too many tools, too many files, or complex tool schemas. Typical failures include:
 
 - Invalid JSON output
 - Tool calls returned as plain text
@@ -45,11 +50,11 @@ The goal is not to make local models magically as capable as large cloud models.
 
 ## Main project goal
 
-Create a local orchestration layer for **OpenClaw** that helps local Ollama models work more reliably on large folders and code projects.
+Create **LocalScope**, a local-first analysis suite that helps local Ollama models and AI-agent adapters work more reliably on folders, code projects, server configuration, documentation, and mixed file structures.
 
 The system must:
 
-1. Take a large user request from OpenClaw.
+1. Take a large local analysis request from a CLI or adapter.
 2. Break it into smaller deterministic tasks.
 3. Use Graphify as a project map / knowledge graph when available.
 4. Select small pieces of relevant context instead of sending the full project to the model.
@@ -58,7 +63,7 @@ The system must:
 7. Save task results in local memory.
 8. Reuse previous results when files have not changed.
 9. Produce Markdown and JSON reports.
-10. Return a concise final result back to OpenClaw.
+10. Return a concise final result back to the CLI or adapter.
 
 The first version must be **read-only**.
 
@@ -71,7 +76,12 @@ The project must **not** be WordPress-only.
 WordPress was only an example of a large project with many files. The correct design is:
 
 ```text
-Claw Local Task Governor = generic local task orchestration engine for OpenClaw
+LocalScope = generic local project and folder analysis suite
+OpenClaw = adapter
+OpenCode = adapter
+Ollama = first local model provider
+Graphify = optional structural context provider
+MCP = future integration option
 WordPress = optional future profile
 PHP = optional future profile
 JavaScript/Node = optional future profile
@@ -82,9 +92,32 @@ Docker/Linux/server config = optional future profile
 
 The core must be generic.
 
+The internal Python module `governor/` can remain temporarily to avoid breaking tests, imports, and the existing CLI. It should be treated as the current implementation package for LocalScope, not as the final product name.
+
 ---
 
 ## High-level architecture
+
+Current LocalScope architecture:
+
+```text
+Adapters
+  -> OpenClaw
+  -> OpenCode
+  -> MCP later
+
+LocalScope core
+  -> scanner
+  -> optional Graphify context provider
+  -> task planner / queue
+  -> Ollama local model provider
+  -> JSON Guard
+  -> SQLite memory
+  -> reducer / reporter
+  -> adapter response
+```
+
+Historical MVP diagram from the original Claw Local Task Governor phase:
 
 ```text
 OpenClaw
@@ -117,7 +150,7 @@ Graphify can generate outputs such as:
 - `GRAPH_REPORT.md`
 - cache files
 
-In this project, Graphify is not the entire solution. It complements the Task Governor.
+In this project, Graphify is not the entire solution. It complements LocalScope as an optional context provider.
 
 Graphify helps with:
 
@@ -127,7 +160,7 @@ Graphify helps with:
 - Reducing the need to scan everything manually
 - Providing useful context before task planning
 
-The Task Governor still handles:
+LocalScope still handles:
 
 - Microtask creation
 - JSON validation
@@ -137,7 +170,58 @@ The Task Governor still handles:
 - Incremental analysis
 - Final report generation
 - Safety rules
-- OpenClaw integration
+- adapter integration
+
+---
+
+## Primary adapters
+
+OpenClaw and OpenCode are adapters, not the core identity of the project.
+
+Initial adapter status:
+
+```text
+OpenClaw = wrapper CLI implemented
+OpenCode = wrapper CLI implemented
+MCP = future integration option
+```
+
+The core must not depend on either OpenClaw or OpenCode.
+
+---
+
+## Core capabilities
+
+LocalScope core capabilities:
+
+- local filesystem scanner
+- task queue
+- microtask runner
+- Ollama provider
+- JSON Guard
+- SQLite memory
+- deterministic reports
+- Graphify optional context provider
+- read-only by default
+- adapter architecture
+
+---
+
+## Supported targets
+
+LocalScope should support:
+
+- Windows folders
+- Linux folders
+- Java projects
+- Python projects
+- JavaScript/TypeScript projects
+- PHP projects
+- WordPress
+- Docker
+- server configuration files
+- documentation
+- generic mixed folders
 
 ---
 
@@ -271,9 +355,9 @@ Responsibilities:
 - Produce final Markdown and JSON reports
 - Summarize reused memory vs newly analyzed files
 
-### 8. OpenClaw integration
+### 8. Adapter integration
 
-Initial integration should expose very few high-level tools to OpenClaw.
+Initial integrations should expose very few high-level tools to adapters such as OpenClaw and OpenCode.
 
 Do not expose dozens of low-level tools.
 
@@ -310,7 +394,7 @@ Response:
 }
 ```
 
-Future tools:
+Future adapter tools:
 
 ```text
 audit_status
@@ -697,7 +781,7 @@ This is how the system regains speed after sacrificing speed for reliability.
 ## Expected repository structure
 
 ```text
-claw-local-task-governor/
+localscope/  (repository folder may temporarily remain claw-local-task-governor)
 │
 ├── README.md
 ├── PROJECT_CONTEXT.md
@@ -851,17 +935,18 @@ Tasks:
 4. Use graph data to prioritize tasks.
 5. Fallback to scanner if graph is missing.
 
-### Phase 6 — OpenClaw integration
+### Phase 6 — Adapter integration
 
 Goal:
-Expose this as a high-level OpenClaw tool.
+Expose this through high-level adapter tools.
 
 Tasks:
 
 1. Create `local_project_audit` tool wrapper.
-2. Make OpenClaw call the local governor.
-3. Return summary + report path.
-4. Keep all execution read-only.
+2. Make OpenClaw call the LocalScope wrapper.
+3. Keep OpenCode on the shared adapter contract without duplicating core logic.
+4. Return summary + report path.
+5. Keep all execution read-only.
 
 ---
 
@@ -871,7 +956,7 @@ Start with **Phase 1 only**.
 
 Do not implement all phases at once.
 
-First task for Codex:
+Historical first task for the original MVP:
 
 ```text
 Create the initial Python project structure for claw-local-task-governor and implement Phase 1: a generic safe scanner with project profile detection, ignore rules, SHA256 hashing, relevance ranking, and scan_result.json output. Do not use Ollama yet. Do not integrate OpenClaw yet. Do not modify any scanned files.
@@ -881,7 +966,7 @@ Create the initial Python project structure for claw-local-task-governor and imp
 
 ## First Codex prompt
 
-Use this prompt after giving Codex this context file:
+Historical first Codex prompt from the original Claw Local Task Governor phase:
 
 ```text
 We are starting Phase 1 of the Claw Local Task Governor project.
@@ -956,10 +1041,10 @@ Phase 1 is successful when:
 
 ## Long-term vision
 
-The final project should make OpenClaw more useful with local low-resource models by acting as a stabilizing layer:
+The final LocalScope project should make local AI-agent workflows more useful with local low-resource models by acting as a stabilizing layer:
 
 ```text
-Large task → smaller tasks → validated JSON → memory → incremental reports → OpenClaw summary
+Large task -> smaller tasks -> validated JSON -> memory -> incremental reports -> adapter summary
 ```
 
 The key philosophy:

@@ -1,0 +1,41 @@
+You are analyzing one configuration or project metadata file from a local project.
+
+Return JSON only. No markdown. No prose. No comments. No code fences.
+
+Rules:
+- Analyze only this file content.
+- Do not invent files, services, environments, secrets, dependencies, or related paths.
+- Do not reveal or repeat secret values.
+- Do not propose editing or applying changes.
+- Do not execute commands.
+- Use findings: [] when no clear issue exists.
+- Maximum 5 findings.
+- Use only these status values: ok, needs_review, error.
+- Use only these risk values: none, low, medium, high, critical.
+- Every finding severity must be one of: low, medium, high, critical.
+
+Required output shape:
+{
+  "file": "string",
+  "status": "ok",
+  "risk": "none",
+  "summary": "string",
+  "findings": [],
+  "needs_related_file": false,
+  "related_files": []
+}
+
+Task ID:
+{{task_id}}
+
+Project profile:
+{{profile}}
+
+Task type:
+{{task_type}}
+
+File path:
+{{file_path}}
+
+File content:
+{{file_content}}

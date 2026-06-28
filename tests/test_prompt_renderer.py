@@ -38,12 +38,42 @@ def test_render_config_prompt_is_generic_and_mentions_secret_handling():
     assert "WordPress" not in prompt
 
 
+def test_render_documentation_prompt_is_supported():
+    prompt = render_prompt(
+        task_id="task-0001",
+        file_path="README.md",
+        profile="general",
+        task_type="inspect_documentation_file",
+        file_content="# Demo",
+    )
+
+    assert "task-0001" in prompt
+    assert "documentation file" in prompt
+    assert "README.md" in prompt
+    assert "Return only valid JSON" in prompt
+    assert "{{" not in prompt
+
+
+def test_render_unknown_prompt_is_supported():
+    prompt = render_prompt(
+        file_path="notes.txt",
+        profile="general",
+        task_type="inspect_unknown_file",
+        file_content="notes",
+    )
+
+    assert "unknown category" in prompt
+    assert "notes.txt" in prompt
+    assert "Do not execute commands" in prompt
+    assert "{{" not in prompt
+
+
 def test_render_prompt_rejects_unsupported_task_type():
     with pytest.raises(PromptRenderError):
         render_prompt(
             file_path="README.md",
             profile="general",
-            task_type="inspect_documentation_file",
+            task_type="inspect_binary_file",
             file_content="# Demo",
         )
 

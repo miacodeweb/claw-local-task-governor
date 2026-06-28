@@ -1,0 +1,7 @@
+{
+    "name": "vendor/calibration-php",
+    "description": "PHP calibration fixture",
+    "require": {
+        "php": ">=8.0"
+    }
+}

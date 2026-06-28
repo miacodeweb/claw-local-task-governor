@@ -44,7 +44,7 @@
         "properties": {
           "line": {
             "type": ["integer", "null"],
-            "minimum": 1
+            "minimum": 0
           },
           "type": {
             "type": "string",

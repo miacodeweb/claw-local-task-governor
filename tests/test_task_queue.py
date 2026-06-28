@@ -94,8 +94,14 @@ def test_build_task_queue_uses_graphify_candidates_to_boost_priority():
         graphify_context={
             "detected": True,
             "used": True,
+            "graph_path": "/demo/graphify-out/graph.json",
             "nodes_total": 1,
+            "edges_total": 4,
             "candidate_files": ["src/main.py"],
+            "important_files": ["src/main.py"],
+            "central_nodes": [{"path": "src/main.py"}],
+            "high_connectivity_files": ["src/main.py"],
+            "communities": [{"id": "core", "files": ["src/main.py"]}],
             "nodes": [
                 {
                     "id": "main",
@@ -111,9 +117,16 @@ def test_build_task_queue_uses_graphify_candidates_to_boost_priority():
     )
 
     assert queue.graphify["used"] is True
+    assert queue.graphify["graph_path"] == "/demo/graphify-out/graph.json"
+    assert queue.graphify["edges_total"] == 4
+    assert queue.graphify["important_files"] == ["src/main.py"]
+    assert queue.graphify["central_nodes"] == [{"path": "src/main.py"}]
     assert queue.tasks[0].priority == "high"
-    assert "Graphify central node" in queue.tasks[0].reason
-    assert "Graphify important node" in queue.tasks[0].reason
+    assert "graphify: referenced_in_graph" in queue.tasks[0].reason
+    assert "graphify: high_connectivity" in queue.tasks[0].reason
+    assert "graphify: central_node" in queue.tasks[0].reason
+    assert "graphify: important_node" in queue.tasks[0].reason
+    assert queue.tasks_with_graphify_signal == 1
 
 
 def test_build_task_queue_orders_by_combined_scanner_and_graphify_score():
@@ -169,6 +182,114 @@ def test_build_task_queue_orders_by_combined_scanner_and_graphify_score():
 
     assert [task.file_path for task in queue.tasks] == ["src/main.py", "src/service.py", "docs/readme.md"]
     assert queue.tasks[0].priority == "high"
-    assert "Graphify high centrality signal" in queue.tasks[0].reason
-    assert "modified file signal" in queue.tasks[1].reason
-    assert "Graphify module relation signal" in queue.tasks[1].reason
+    assert "graphify: central_node" in queue.tasks[0].reason
+    assert "scanner: modified_file" in queue.tasks[1].reason
+    assert "graphify: related_module" in queue.tasks[1].reason
+
+
+def test_prioritization_without_graphify_keeps_scanner_order():
+    scan_result = {
+        "root": "/demo",
+        "profile_detected": "python",
+        "files": [
+            {"path": "README.md", "extension": ".md", "sha256": "doc", "relevant": True, "importance": "low", "size": 1000},
+            {"path": "src/main.py", "extension": ".py", "sha256": "main", "relevant": True, "importance": "medium", "size": 2000},
+            {"path": ".env.example", "extension": "", "sha256": "env", "relevant": True, "importance": "medium", "size": 200},
+        ],
+    }
+
+    queue = build_task_queue(scan_result)
+
+    assert [task.file_path for task in queue.tasks] == [".env.example", "src/main.py", "README.md"]
+    assert queue.graphify["used"] is False
+    assert queue.tasks_with_graphify_signal == 0
+    assert "scanner: risk_pattern:.env" in queue.tasks[0].reason
+
+
+def test_central_graphify_file_moves_ahead_of_unreferenced_file():
+    scan_result = {
+        "root": "/demo",
+        "profile_detected": "general",
+        "files": [
+            {"path": "src/helper.py", "extension": ".py", "sha256": "helper", "relevant": True, "importance": "medium", "size": 2000},
+            {"path": "src/core.py", "extension": ".py", "sha256": "core", "relevant": True, "importance": "medium", "size": 2000},
+        ],
+    }
+
+    queue = build_task_queue(
+        scan_result,
+        graphify_context={
+            "detected": True,
+            "used": True,
+            "nodes_total": 1,
+            "candidate_files": ["src/core.py"],
+            "nodes": [
+                {
+                    "id": "core",
+                    "path": "src/core.py",
+                    "relationship_count": 5,
+                    "centrality": 0.95,
+                    "important": True,
+                    "related_paths": [],
+                    "related_file_count": 0,
+                }
+            ],
+        },
+    )
+
+    assert [task.file_path for task in queue.tasks] == ["src/core.py", "src/helper.py"]
+    assert "graphify: central_node" in queue.tasks[0].reason
+    assert "graphify:" not in queue.tasks[1].reason
+
+
+def test_unreferenced_file_keeps_normal_priority_when_graphify_exists():
+    scan_result = {
+        "root": "/demo",
+        "profile_detected": "general",
+        "files": [
+            {"path": "src/main.py", "extension": ".py", "sha256": "main", "relevant": True, "importance": "medium", "size": 2000},
+            {"path": "src/unused.py", "extension": ".py", "sha256": "unused", "relevant": True, "importance": "medium", "size": 2000},
+        ],
+    }
+
+    queue = build_task_queue(
+        scan_result,
+        graphify_context={
+            "detected": True,
+            "used": True,
+            "nodes_total": 1,
+            "candidate_files": ["src/main.py"],
+            "nodes": [{"id": "main", "path": "src/main.py", "relationship_count": 1}],
+        },
+    )
+
+    task_by_path = {task.file_path: task for task in queue.tasks}
+    assert "graphify: referenced_in_graph" in task_by_path["src/main.py"].reason
+    assert "graphify:" not in task_by_path["src/unused.py"].reason
+    assert task_by_path["src/unused.py"].priority == "medium"
+
+
+def test_partial_graphify_context_does_not_break_prioritization():
+    scan_result = {
+        "root": "/demo",
+        "profile_detected": "general",
+        "files": [
+            {"path": "src/main.py", "extension": ".py", "sha256": "main", "relevant": True, "importance": "medium", "size": 2000},
+        ],
+    }
+
+    queue = build_task_queue(
+        scan_result,
+        graphify_context={
+            "detected": True,
+            "used": False,
+            "nodes_total": 0,
+            "candidate_files": [],
+            "nodes": [{"unexpected": "shape"}],
+            "warnings": ["graph.json was loaded but no recognizable nodes or edges were found"],
+        },
+    )
+
+    assert queue.tasks_total == 1
+    assert queue.tasks[0].priority == "medium"
+    assert queue.graphify["warnings"]

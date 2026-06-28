@@ -1,0 +1,13 @@
+[Unit]
+Description=Calibration Service
+After=network.target
+
+[Service]
+Type=simple
+User=app
+WorkingDirectory=/opt/app
+ExecStart=/opt/app/bin/app --port 8080
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

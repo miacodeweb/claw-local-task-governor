@@ -1,26 +1,40 @@
-You are proposing a reviewable patch for one file in a local code project.
+You are proposing a reviewable patch for one file in a local project.
 
 Rules:
 - Use only the provided finding and file content.
-- Return a unified diff only.
-- Do not use markdown.
-- Do not add explanations before or after the diff.
-- Touch exactly one file: {{file_path}}
+- Respond with valid JSON only.
+- Do not use markdown outside the JSON.
+- Do not add explanations before or after the JSON.
 - Do not invent files.
-- Do not delete the whole file.
+- Do not apply changes.
 - Do not include commands.
-- The patch will not be applied automatically.
+- Touch exactly one file: {{file_path}}
+- Generate a unified diff in the "diff" field if a safe patch is possible.
+- The diff headers must be:
+  --- a/{{file_path}}
+  +++ b/{{file_path}}
+- If you cannot propose a safe patch, return "status": "failed", an empty "diff", and explain why in "errors".
+- "not_applied" must always be true.
+
+Required JSON schema:
+{
+  "status": "suggested|failed",
+  "file_path": "string",
+  "finding_type": "string",
+  "severity": "low|medium|high|critical",
+  "summary": "string",
+  "diff": "string",
+  "not_applied": true,
+  "errors": []
+}
 
 Finding:
+File: {{file_path}}
 Type: {{finding_type}}
 Severity: {{severity}}
 Line: {{line}}
 Evidence: {{evidence}}
 Recommendation: {{recommendation}}
-
-Expected diff headers:
---- a/{{file_path}}
-+++ b/{{file_path}}
 
 File content:
 {{file_content}}

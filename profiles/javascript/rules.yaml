@@ -5,6 +5,7 @@
   "ignore_dirs": ["node_modules", "dist", "build", "coverage"],
   "risk_patterns": ["eval(", "innerHTML", "process.env", "child_process", "dangerouslySetInnerHTML"],
   "recommended_prompt": "inspect_code_file.txt",
+  "base_priority": "medium",
   "markers": {
     "files": ["package.json"],
     "confidence": 0.75

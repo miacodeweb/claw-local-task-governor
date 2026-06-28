@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Iterable
 
 from governor.profile_detector import ProfileSignal, detect_profiles
-from governor.profiles import ProjectProfile, load_profile
+from governor.profiles import ProjectProfile, load_profile, validate_profile_name
 
 
 IGNORE_DIR_NAMES = {
@@ -167,15 +167,20 @@ class ScanResult:
         }
 
 
-def scan_project(target_path: Path | str, output_dir: Path | str = "reports") -> ScanResult:
+def scan_project(
+    target_path: Path | str,
+    output_dir: Path | str = "reports",
+    profile: str | None = "auto",
+) -> ScanResult:
     """Scan a project folder without modifying files inside it."""
     root = _resolve_existing_directory(Path(target_path))
+    profile_name = validate_profile_name(profile or "auto")
     output_paths = {
         (Path(output_dir) / "scan_result.json").resolve(),
         (Path(output_dir) / "tasks.json").resolve(),
         (Path(output_dir) / "task_results.json").resolve(),
     }
-    profiles = detect_profiles(root)
+    profiles = detect_profiles(root, forced_profile=profile_name)
     profile_rules = load_profile(profiles[0].profile)
     ignored: list[IgnoredPath] = []
     files: list[ScannedFile] = []

@@ -75,19 +75,26 @@ def test_local_project_audit_runs_high_level_read_only_flow(tmp_path):
         path=project,
         profile="auto",
         mode="general",
-        max_files=1,
+        max_tasks=1,
         read_only=True,
         output_dir=output_dir,
         client=client,
     )
 
     assert response["status"] == "completed"
+    assert response["project_path"] == str(project.resolve())
+    assert response["profile_detected"]
+    assert response["report_markdown"].endswith(".md")
+    assert response["report_json"].endswith(".json")
+    assert response["tasks_processed"] == 1
     assert response["files_scanned"] == 1
     assert response["files_analyzed"] == 1
     assert response["files_reused_from_memory"] == 0
+    assert response["reused"] == 0
     assert response["json_valid"] == 1
     assert response["json_repaired"] == 0
     assert response["json_failed"] == 0
+    assert response["errors"] == []
     assert (output_dir / "scan_result.json").exists()
     assert (output_dir / "tasks.json").exists()
     assert (output_dir / "task_results.json").exists()
@@ -104,7 +111,8 @@ def test_local_project_audit_rejects_non_read_only_requests(tmp_path):
         output_dir=output_dir,
     )
 
-    assert response["status"] == "rejected"
+    assert response["status"] == "failed"
+    assert response["errors"] == ["read_only=false rejected"]
     assert response["files_scanned"] == 0
     assert not output_dir.exists()
 
@@ -117,7 +125,7 @@ def test_local_project_audit_validates_public_arguments(tmp_path):
         local_project_audit(path=tmp_path, mode="rewrite")
 
     with pytest.raises(ValueError):
-        local_project_audit(path=tmp_path, max_files=0)
+        local_project_audit(path=tmp_path, max_tasks=0)
 
 
 def test_local_audit_status_returns_recent_audits_without_reanalysis(tmp_path):
@@ -170,23 +178,23 @@ def test_local_audit_report_returns_compact_summary_from_json_or_markdown(tmp_pa
     assert markdown_response == json_response
 
 
-def test_openclaw_manifest_exposes_high_level_tools_only():
+def test_openclaw_manifest_exposes_only_high_level_audit_without_write_tools():
     manifest = json.loads(
         (Path(__file__).parents[1] / "openclaw" / "tool_manifest.json").read_text(
             encoding="utf-8"
         )
     )
 
-    assert [tool["name"] for tool in manifest["tools"]] == [
-        "local_project_audit",
-        "local_audit_status",
-        "local_audit_report",
-    ]
+    assert [tool["name"] for tool in manifest["tools"]] == ["local_scope_audit"]
+    assert manifest["tools"][0]["aliases"] == ["local_project_audit"]
     for tool in manifest["tools"]:
         assert tool["safety"]["read_only"] is True
         assert tool["safety"]["allows_editing"] is False
+        assert tool["safety"]["allows_patch_application"] is False
     assert "read_file" not in json.dumps(manifest)
     assert "write_file" not in json.dumps(manifest)
+    assert "run_command" not in json.dumps(manifest)
+    assert "apply_patch" not in json.dumps(manifest)
 
 
 def test_openclaw_audit_cli_prints_json_response(monkeypatch, capsys, tmp_path):
@@ -194,18 +202,28 @@ def test_openclaw_audit_cli_prints_json_response(monkeypatch, capsys, tmp_path):
         assert kwargs["path"] == tmp_path
         assert kwargs["profile"] == "auto"
         assert kwargs["mode"] == "general"
+        assert kwargs["max_tasks"] == 3
         assert kwargs["max_files"] == 3
+        assert kwargs["use_memory"] is True
+        assert kwargs["use_graphify"] is True
         assert kwargs["read_only"] is True
         return {
             "status": "completed",
-            "report_path": "reports/audit.md",
-            "summary": "ok",
-            "files_scanned": 1,
-            "files_analyzed": 1,
-            "files_reused_from_memory": 0,
+            "project_path": str(tmp_path),
+            "profile_detected": "general",
+            "report_markdown": "reports/audit.md",
+            "report_json": "reports/audit.json",
+            "tasks_processed": 1,
+            "reused": 0,
             "json_valid": 1,
             "json_repaired": 0,
             "json_failed": 0,
+            "summary": "ok",
+            "errors": [],
+            "report_path": "reports/audit.md",
+            "files_scanned": 1,
+            "files_analyzed": 1,
+            "files_reused_from_memory": 0,
         }
 
     monkeypatch.setattr("governor.main.local_project_audit", fake_local_project_audit)
@@ -216,6 +234,8 @@ def test_openclaw_audit_cli_prints_json_response(monkeypatch, capsys, tmp_path):
             "--path",
             str(tmp_path),
             "--max-files",
+            "3",
+            "--max-tasks",
             "3",
             "--read-only",
             "true",

@@ -5,6 +5,7 @@
   "ignore_dirs": ["target", "build", ".gradle"],
   "risk_patterns": ["Runtime.getRuntime", "ProcessBuilder", "ObjectInputStream", "System.getenv"],
   "recommended_prompt": "inspect_code_file.txt",
+  "base_priority": "medium",
   "markers": {
     "files": ["pom.xml", "build.gradle"],
     "confidence": 0.75

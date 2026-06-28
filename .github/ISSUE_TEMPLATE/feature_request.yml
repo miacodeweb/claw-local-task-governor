@@ -1,0 +1,40 @@
+name: Feature Request
+description: Suggest a feature for LocalScope
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Behavior
+      description: What should LocalScope do?
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security Impact
+      description: Does this affect read-only guarantees, file access, or model calls?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches could work?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: This feature keeps read-only guarantees
+        - label: This feature does not require auto-downloading models
+        - label: This feature does not require fine-tuning
+        - label: This feature does not modify config.yaml automatically

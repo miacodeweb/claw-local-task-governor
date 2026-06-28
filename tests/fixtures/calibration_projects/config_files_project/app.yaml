@@ -1,0 +1,6 @@
+app:
+  name: calibration-app
+  version: "1.0"
+  port: 8080
+  debug: true
+  log_level: info

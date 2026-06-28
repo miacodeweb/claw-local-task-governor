@@ -1,6 +1,6 @@
 import json
 
-from governor.json_guard import guard_json, parse_json
+from governor.json_guard import JSONGuard, guard_json, parse_json
 
 
 VALID_FILE_ANALYSIS = {
@@ -41,6 +41,45 @@ def test_guard_json_validates_file_analysis_schema():
 
     assert result.valid is True
     assert result.data["file"] == "src/main.py"
+
+
+def test_guard_json_returns_structured_dict_output():
+    result = guard_json(json.dumps(VALID_FILE_ANALYSIS), "file_analysis.schema.json")
+
+    assert result.to_dict() == {
+        "valid": True,
+        "repaired": False,
+        "data": VALID_FILE_ANALYSIS,
+        "errors": [],
+        "raw_text": json.dumps(VALID_FILE_ANALYSIS),
+    }
+
+
+def test_json_guard_class_reuses_schema():
+    guard = JSONGuard("file_analysis.schema.json")
+
+    result = guard.validate(json.dumps(VALID_FILE_ANALYSIS))
+
+    assert result.valid is True
+    assert result.errors == []
+
+
+def test_guard_json_accepts_zero_line_number():
+    valid = dict(VALID_FILE_ANALYSIS)
+    valid["findings"] = [
+        {
+            "line": 0,
+            "type": "security",
+            "severity": "low",
+            "evidence": "Example evidence.",
+            "recommendation": "Review manually.",
+        }
+    ]
+
+    result = guard_json(json.dumps(valid), "file_analysis.schema.json")
+
+    assert result.valid is True
+    assert result.data["findings"][0]["line"] == 0
 
 
 def test_guard_json_extracts_json_from_surrounding_text():
@@ -139,4 +178,4 @@ def test_guard_json_reports_unparseable_text():
 
     assert result.valid is False
     assert result.data is None
-    assert result.errors
+    assert result.errors == ["no JSON object or array found"]

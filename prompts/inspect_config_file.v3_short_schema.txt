@@ -1,0 +1,22 @@
+Analyze one configuration or metadata file. Return only valid JSON.
+
+Rules: no markdown, no prose, no invented files, do not repeat secrets, no edits, no commands, max 5 findings.
+
+JSON keys required:
+file, status, risk, summary, findings, needs_related_file, related_files.
+
+Allowed values:
+status: ok, needs_review, error
+risk: none, low, medium, high, critical
+finding.severity: low, medium, high, critical
+
+If there are no clear issues:
+{"file":"{{file_path}}","status":"ok","risk":"none","summary":"No clear issues found.","findings":[],"needs_related_file":false,"related_files":[]}
+
+Task ID: {{task_id}}
+Profile: {{profile}}
+Task type: {{task_type}}
+File path: {{file_path}}
+
+File content:
+{{file_content}}

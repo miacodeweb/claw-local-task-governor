@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a bug in LocalScope
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "Windows 10, Ubuntu 22.04, etc."
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      placeholder: "3.11.5"
+    validations:
+      required: true
+  - type: input
+    id: localscope-version
+    attributes:
+      label: LocalScope Version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command Used
+      placeholder: "localscope audit path/to/project --max-tasks 5"
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider / Model
+      description: "e.g. ollama/qwen2.5-coder:7b"
+      placeholder: "ollama / qwen2.5-coder:7b"
+  - type: textarea
+    id: error
+    attributes:
+      label: Error Output
+      description: "Paste sanitized error output (remove API keys, tokens, etc.)"
+      render: text
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this?
+    validations:
+      required: true

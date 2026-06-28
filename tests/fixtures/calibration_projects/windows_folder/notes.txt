@@ -1,0 +1,4 @@
+Windows calibration project.
+
+Settings in settings.ini.
+Backup script in script.ps1.

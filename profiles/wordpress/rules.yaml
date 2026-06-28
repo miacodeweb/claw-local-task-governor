@@ -5,6 +5,7 @@
   "ignore_dirs": ["wp-content/uploads", "wp-content/cache"],
   "risk_patterns": ["ABSPATH", "wp_nonce", "current_user_can", "$wpdb", "sanitize_"],
   "recommended_prompt": "inspect_code_file.txt",
+  "base_priority": "medium",
   "markers": {
     "all_files": ["wp-config.php"],
     "all_dirs": ["wp-content"],

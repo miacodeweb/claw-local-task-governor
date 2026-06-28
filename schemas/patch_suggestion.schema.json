@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalScope Patch Suggestion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "file_path",
+    "finding_type",
+    "severity",
+    "summary",
+    "diff",
+    "not_applied",
+    "errors"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["suggested", "failed"]
+    },
+    "file_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "finding_type": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "diff": {
+      "type": "string"
+    },
+    "not_applied": {
+      "type": "boolean"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

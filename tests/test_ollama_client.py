@@ -9,8 +9,11 @@ from governor.ollama_client import (
     OllamaConfig,
     OllamaConnectionError,
     OllamaEmptyResponseError,
+    OllamaHTTPError,
     OllamaModelNotFoundError,
     OllamaTimeoutError,
+    OllamaUnexpectedResponseError,
+    check_ollama_available,
     load_ollama_config,
 )
 
@@ -79,6 +82,50 @@ def test_chat_uses_native_ollama_chat_api():
     assert captured["payload"]["stream"] is False
 
 
+def test_check_ollama_available_uses_native_tags_api():
+    captured = {}
+
+    def fake_open(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        return FakeResponse(b'{"models":[]}')
+
+    client = OllamaClient(OllamaConfig(base_url="http://127.0.0.1:11434"), opener=fake_open)
+
+    assert client.check_ollama_available() is True
+    assert captured["url"] == "http://127.0.0.1:11434/api/tags"
+    assert captured["method"] == "GET"
+    assert "/v1" not in captured["url"]
+
+
+def test_list_models_returns_names_from_tags_api():
+    def fake_open(request, timeout):
+        return FakeResponse(
+            b'{"models":[{"name":"qwen2.5-coder:7b"},{"name":"llama3.2:3b"},{"size":1}]}'
+        )
+
+    client = OllamaClient(OllamaConfig(), opener=fake_open)
+
+    assert client.list_models() == ["qwen2.5-coder:7b", "llama3.2:3b"]
+
+
+def test_module_check_ollama_available_uses_loaded_config(monkeypatch):
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, config):
+            captured["config"] = config
+
+        def check_ollama_available(self):
+            return True
+
+    monkeypatch.setattr("governor.ollama_client.load_ollama_config", lambda config_path: "cfg")
+    monkeypatch.setattr("governor.ollama_client.OllamaClient", FakeClient)
+
+    assert check_ollama_available("config.yaml") is True
+    assert captured["config"] == "cfg"
+
+
 def test_analyze_text_with_model_truncates_text():
     captured = {}
 
@@ -142,3 +189,49 @@ def test_chat_raises_empty_response_error():
 
     with pytest.raises(OllamaEmptyResponseError):
         client.chat([{"role": "user", "content": "hello"}])
+
+
+def test_chat_raises_unexpected_response_for_invalid_json():
+    def fake_open(request, timeout):
+        return FakeResponse(b"not-json")
+
+    client = OllamaClient(OllamaConfig(), opener=fake_open)
+
+    with pytest.raises(OllamaUnexpectedResponseError):
+        client.chat([{"role": "user", "content": "hello"}])
+
+
+def test_chat_raises_unexpected_response_for_missing_message():
+    def fake_open(request, timeout):
+        return FakeResponse(b'{"response":"legacy shape"}')
+
+    client = OllamaClient(OllamaConfig(), opener=fake_open)
+
+    with pytest.raises(OllamaUnexpectedResponseError):
+        client.chat([{"role": "user", "content": "hello"}])
+
+
+def test_list_models_raises_unexpected_response_for_bad_payload():
+    def fake_open(request, timeout):
+        return FakeResponse(b'{"items":[]}')
+
+    client = OllamaClient(OllamaConfig(), opener=fake_open)
+
+    with pytest.raises(OllamaUnexpectedResponseError):
+        client.list_models()
+
+
+def test_http_error_raises_http_error_for_non_model_failure():
+    def fake_open(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url,
+            500,
+            "server error",
+            hdrs=None,
+            fp=FakeResponse(b'{"error":"internal"}'),
+        )
+
+    client = OllamaClient(OllamaConfig(), opener=fake_open)
+
+    with pytest.raises(OllamaHTTPError):
+        client.check_ollama_available()

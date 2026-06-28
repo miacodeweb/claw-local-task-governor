@@ -1,31 +1,35 @@
-# OpenClaw integration
+# OpenClaw Adapter For LocalScope
 
-This integration exposes three high-level read-only tools for OpenClaw:
+This folder contains the initial OpenClaw adapter for LocalScope.
 
-```text
-local_project_audit
-local_audit_status
-local_audit_report
-```
+Current status: wrapper CLI, not a native OpenClaw plugin yet.
 
-`local_project_audit` runs the internal governor flow:
+LocalScope is the core product. OpenClaw is one adapter that can call the core audit flow.
+
+## Tool
+
+`local_scope_audit` is the primary high-level wrapper exposed for a full local audit.
+
+`local_project_audit` remains as a compatibility alias for older OpenClaw configurations.
+
+It runs this internal read-only flow:
 
 ```text
 scan -> tasks -> run-tasks -> report
 ```
 
-The status and report tools only read existing governor outputs. They do not run a new audit.
+It does not expose low-level tools such as `read_file`, `write_file`, `run_command`, or `apply_patch`.
 
-These tools do not expose low-level file tools such as `read_file` or `write_file`, and they do not edit the audited project.
-
-## local_project_audit
+## Arguments
 
 ```json
 {
   "path": "D:/path/to/project",
   "profile": "auto",
   "mode": "general",
-  "max_files": 50,
+  "max_tasks": 5,
+  "use_memory": true,
+  "use_graphify": true,
   "read_only": true
 }
 ```
@@ -33,119 +37,125 @@ These tools do not expose low-level file tools such as `read_file` or `write_fil
 Supported profiles:
 
 ```text
-auto, general, php, wordpress, javascript, python, java, docker
+auto, general, php, wordpress, javascript, python, java, docker, windows_folder, linux_folder
 ```
 
 Supported modes:
 
 ```text
-general, security, code_quality, performance, seo
+general, security, code_quality, config_audit
 ```
 
-`read_only` must be `true`. If it is `false`, the tool returns a rejected response and does not run the audit.
+`read_only` must be `true`. If it is `false`, the wrapper returns JSON with `status: "failed"` and does not run an audit.
 
-CLI wrapper:
+## Manual Test
 
-```bash
-python -m governor.main openclaw-audit --path "D:/path/to/project" --profile auto --mode general --max-files 50 --read-only true
+From the repository root:
+
+```powershell
+python adapters/openclaw/local_scope_audit.py --path D:\ruta\al\proyecto --profile auto --max-tasks 5 --read-only true
 ```
 
-## local_audit_status
+Equivalent module form:
 
-Returns recent audit reports and current task-result status without scanning, queuing, running Ollama, or reducing again.
-
-Arguments:
-
-```json
-{
-  "output_dir": "reports",
-  "limit": 5
-}
+```powershell
+python -m adapters.openclaw.local_scope_audit --path "D:/path/to/project" --max-tasks 5 --profile auto --read-only true
 ```
 
-CLI wrapper:
+Optional flags:
 
-```bash
-python -m governor.main openclaw-status --output-dir reports --limit 5
+```powershell
+python -m adapters.openclaw.local_scope_audit --path "D:/path/to/project" --profile python --mode security --max-tasks 3 --use-memory true --use-graphify true --read-only true
 ```
 
-Response shape:
+Legacy shim:
 
-```json
-{
-  "status": "completed",
-  "output_dir": "D:/claw-local-task-governor/reports",
-  "audits_count": 1,
-  "recent_audits": [
-    {
-      "status": "completed",
-      "report_path": "D:/claw-local-task-governor/reports/audit-20260621-153045.md",
-      "json_report_path": "D:/claw-local-task-governor/reports/audit-20260621-153045.json",
-      "summary": "Audit reduced 5 analyzed files with 1 actionable findings, 0 reused results, and 0 JSON failures.",
-      "files_analyzed": 5,
-      "json_failed": 0,
-      "updated_at": 1782055845.0
-    }
-  ],
-  "current_task_results": {
-    "project_path": "D:/path/to/project",
-    "generated_at": "2026-06-21T15:30:45+00:00",
-    "tasks_selected": 5,
-    "tasks_completed": 5,
-    "tasks_failed": 0,
-    "tasks_reused": 0
-  }
-}
+```powershell
+python openclaw/local_project_audit.py --path "D:/path/to/project" --profile auto --max-tasks 5 --read-only true
 ```
 
-## local_audit_report
+## Response
 
-Returns a compact summary from an existing final report. Pass either the JSON report path or the Markdown report path. If a Markdown path is given, the tool reads the matching `.json` report.
-
-Arguments:
-
-```json
-{
-  "report_path": "D:/claw-local-task-governor/reports/audit-20260621-153045.json"
-}
-```
-
-CLI wrapper:
-
-```bash
-python -m governor.main openclaw-report --report-path "D:/claw-local-task-governor/reports/audit-20260621-153045.json"
-```
-
-Response shape:
+The wrapper always prints JSON to stdout. Logs or debug output must go to stderr.
 
 ```json
 {
   "status": "completed",
-  "report_path": "D:/claw-local-task-governor/reports/audit-20260621-153045.md",
-  "json_report_path": "D:/claw-local-task-governor/reports/audit-20260621-153045.json",
-  "summary": "Audit reduced 5 analyzed files with 1 actionable findings, 0 reused results, and 0 JSON failures.",
+  "adapter": "openclaw",
+  "project_path": "D:/path/to/project",
   "profile_detected": "python",
-  "files_scanned": 120,
-  "files_analyzed": 5,
-  "files_reused_from_memory": 0,
+  "report_markdown": "D:/localscope/reports/audit-YYYYMMDD-HHMMSS.md",
+  "report_json": "D:/localscope/reports/audit-YYYYMMDD-HHMMSS.json",
+  "tasks_processed": 5,
+  "reused": 0,
   "json_valid": 5,
   "json_repaired": 0,
   "json_failed": 0,
-  "findings_by_priority": {
-    "critical": 0,
-    "high": 0,
-    "medium": 1,
-    "low": 0,
-    "none": 4
-  },
-  "failed_tasks": 0,
-  "recommendations": []
+  "summary": "Audit reduced 5 analyzed files with 0 actionable findings.",
+  "errors": []
 }
 ```
 
+If Ollama is unavailable, the wrapper still prints JSON. The audit may complete with failed model tasks, or fail early if the error happens before task execution.
+
 ## Safety
 
-- `local_project_audit` only calls existing read-only governor steps.
-- `local_audit_status` and `local_audit_report` only read existing governor output files.
-- The tools do not modify files inside the audited project.
-- The tools do not expose separate read, write, shell, or edit tools.
+- The adapter is read-only.
+- The wrapper rejects `read_only=false`.
+- It writes only LocalScope-owned outputs such as `reports/scan_result.json`, `reports/tasks.json`, `reports/task_results.json`, and final audit reports.
+- It does not edit the audited project.
+- It does not run shell commands against the audited project.
+- It does not expose file editing or patch application.
+
+## Connecting To OpenClaw
+
+Until a native plugin is implemented, configure OpenClaw to call this wrapper as one external command:
+
+```powershell
+python -m adapters.openclaw.local_scope_audit --path "<PROJECT_PATH>" --profile auto --mode general --max-tasks 5 --read-only true
+```
+
+OpenClaw should parse stdout as JSON and use `report_markdown`, `report_json`, and `summary` for its final response.
+
+Recommended behavior inside OpenClaw:
+
+- Treat `local_scope_audit` as one high-level audit tool.
+- Do not expose scanner, task runner, JSON Guard, file reading, shell, or patch operations as separate OpenClaw tools.
+- Ask LocalScope to audit, then use the generated Markdown/JSON report for the answer.
+- Keep the operation read-only and reject any request to modify files through this adapter.
+
+## Prompt Examples For OpenClaw
+
+Prompt 1:
+
+```text
+Usa LocalScope mediante el adaptador local_scope_audit para auditar esta carpeta en modo read-only. No modifiques archivos. Devuélveme un resumen del reporte Markdown/JSON generado.
+```
+
+Prompt 2:
+
+```text
+Primero consulta si existe contexto Graphify. Luego ejecuta LocalScope con max_tasks=5 y resume hallazgos críticos, altos y medios.
+```
+
+Prompt 3:
+
+```text
+Ejecuta LocalScope sobre este proyecto con perfil auto. Si Ollama no responde, informa el error sin intentar modificar nada.
+```
+
+## Current Limits
+
+- This is not a native OpenClaw plugin yet.
+- OpenCode is handled by its own LocalScope adapter under `adapters/opencode/`.
+- MCP is available as a separate experimental adapter under `adapters/mcp/`; OpenClaw can keep using this CLI wrapper unless native MCP support is configured later.
+- Patch generation and file editing are not exposed.
+- Graphify is optional and is only read if existing outputs are present.
+- The final report reduce is deterministic; it does not ask a model to write the report.
+
+## TODO For Native Plugin
+
+- Map this wrapper contract into OpenClaw's native plugin/tool manifest format.
+- Keep only the single high-level `local_scope_audit` surface, with `local_project_audit` as an optional compatibility alias.
+- Preserve `read_only=true` as mandatory.
+- Keep low-level file and shell tools unavailable.

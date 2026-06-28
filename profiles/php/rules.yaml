@@ -5,6 +5,7 @@
   "ignore_dirs": ["vendor"],
   "risk_patterns": ["eval(", "shell_exec", "unserialize", "$_GET", "$_POST"],
   "recommended_prompt": "inspect_code_file.txt",
+  "base_priority": "medium",
   "markers": {
     "files": ["composer.json"],
     "confidence": 0.75

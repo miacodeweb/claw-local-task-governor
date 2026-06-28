@@ -1,0 +1,8 @@
+[app]
+name = calibration
+port = 8080
+debug = true
+
+[logging]
+level = "info"
+file = "app.log"
